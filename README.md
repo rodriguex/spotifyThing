@@ -1,0 +1,1 @@
+# Gonna do the whole thing using GO. It's basically an API.
