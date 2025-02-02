@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
@@ -9,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -32,11 +34,7 @@ func main() {
 
 	execute := widget.NewButton("Search", func() {
 		search(input.Text)
-		input.Text = ""
-		input.Refresh()
-		go func() {
-			myWindow.Canvas().Focus(input)
-		}()
+		os.Exit(0)
 	})
 
 	myWindow.SetContent(container.NewVBox(
@@ -74,7 +72,7 @@ func authorize() {
 
 		router.GET("/authorize", func(c *gin.Context) {
 			code := c.Query("code")
-			accessToken(code)
+			accessToken(code, "auth")
 			wg.Done()
 		})
 		router.Run("localhost:8080")
@@ -83,17 +81,18 @@ func authorize() {
 	wg.Wait()
 }
 
-func accessToken(code string) {
+func accessToken(value string, action string) {
 	apiUrl := "https://accounts.spotify.com/api/token"
 
 	formData := url.Values{}
-	formData.Set("code", code)
-	formData.Set("redirect_uri", "http://localhost:8080/authorize")
-	formData.Set("grant_type", "authorization_code")
-
-	clientID := "3b352d644e58404e80544474ff992166"
-	clientSecret := "fda4e2cdca1244b2819ca6bd805542f0"
-	authHeader := base64.StdEncoding.EncodeToString([]byte(clientID + ":" + clientSecret))
+	if action == "auth" {
+		formData.Set("code", value)
+		formData.Set("grant_type", "authorization_code")
+		formData.Set("redirect_uri", "http://localhost:8080/authorize")
+	} else {
+		formData.Set("grant_type", "refresh_token")
+		formData.Set("refresh_token", value)
+	}
 
 	req, repErr := http.NewRequest("POST", apiUrl, strings.NewReader(formData.Encode()))
 	if repErr != nil {
@@ -101,6 +100,10 @@ func accessToken(code string) {
 	}
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	clientID := "3b352d644e58404e80544474ff992166"
+	clientSecret := "fda4e2cdca1244b2819ca6bd805542f0"
+	authHeader := base64.StdEncoding.EncodeToString([]byte(clientID + ":" + clientSecret))
+
 	req.Header.Set("Authorization", "Basic "+authHeader)
 
 	client := &http.Client{}
@@ -115,6 +118,9 @@ func accessToken(code string) {
 		log.Fatalf("Error reading response body: %v", err)
 	}
 
+	fmt.Println("tokens:")
+	fmt.Println(string(body))
+
 	var responseMap map[string]interface{}
 	if err := json.Unmarshal(body, &responseMap); err != nil {
 		log.Fatalf("Error parsing JSON response: %v", err)
@@ -122,12 +128,34 @@ func accessToken(code string) {
 
 	tokenRetrieved.Lock()
 	token, _ = responseMap["access_token"].(string)
+	refreshToken, _ := responseMap["refresh_token"].(string)
 	tokenRetrieved.Unlock()
+
+	if action != "auth" {
+		os.Remove(".spotifyThingTopSecret.txt")
+		os.Remove(".spotifyThingSecret.txt")
+	}
+
+	fileToken, _ := os.Create(".spotifyThingTopSecret.txt")
+	defer fileToken.Close()
+	fileToken.WriteString(token)
+
+	fileRefreshToken, _ := os.Create(".spotifyThingSecret.txt")
+	defer fileRefreshToken.Close()
+	fileRefreshToken.WriteString(refreshToken)
 }
 
 func search(song string) {
 	if token == "" {
-		authorize()
+		file, err := os.Open(".spotifyThingTopSecret.txt")
+		if err != nil {
+			authorize()
+		} else {
+			defer file.Close()
+			scanner := bufio.NewScanner(file)
+			scanner.Scan()
+			token = scanner.Text()
+		}
 	}
 
 	apiUrl := "https://api.spotify.com/v1/search"
@@ -152,6 +180,15 @@ func search(song string) {
 	resp, respErr := client.Do(req)
 	if respErr != nil {
 		log.Fatalf("Error sending request: %v", respErr)
+	}
+
+	if resp.StatusCode == 401 {
+		file, _ := os.Open(".spotifyThingSecret.txt")
+		defer file.Close()
+		scanner := bufio.NewScanner(file)
+		scanner.Scan()
+		refreshToken := scanner.Text()
+		accessToken(refreshToken, "refresh")
 	}
 
 	defer resp.Body.Close()
@@ -191,5 +228,6 @@ func changeSong(song string) {
 	if respErr != nil {
 		log.Fatalf("Error sending request: %v", respErr)
 	}
+
 	defer resp.Body.Close()
 }
