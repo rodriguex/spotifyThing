@@ -23,7 +23,6 @@ import (
 )
 
 var token string
-var tokenRetrieved sync.Mutex
 
 func main() {
 	myApp := app.New()
@@ -118,18 +117,13 @@ func accessToken(value string, action string) {
 		log.Fatalf("Error reading response body: %v", err)
 	}
 
-	fmt.Println("tokens:")
-	fmt.Println(string(body))
-
 	var responseMap map[string]interface{}
 	if err := json.Unmarshal(body, &responseMap); err != nil {
 		log.Fatalf("Error parsing JSON response: %v", err)
 	}
 
-	tokenRetrieved.Lock()
 	token, _ = responseMap["access_token"].(string)
 	refreshToken, _ := responseMap["refresh_token"].(string)
-	tokenRetrieved.Unlock()
 
 	if action != "auth" {
 		os.Remove(".spotifyThingTopSecret.txt")
@@ -143,6 +137,12 @@ func accessToken(value string, action string) {
 	fileRefreshToken, _ := os.Create(".spotifyThingSecret.txt")
 	defer fileRefreshToken.Close()
 	fileRefreshToken.WriteString(refreshToken)
+
+	if action != "auth" {
+		fmt.Println("REFRESH TOKEN RESULTS:")
+		fmt.Println(token)
+		fmt.Println(refreshToken)
+	}
 }
 
 func search(song string) {
@@ -172,9 +172,7 @@ func search(song string) {
 		log.Fatalf("Error creating request: %v", repErr)
 	}
 
-	tokenRetrieved.Lock()
 	req.Header.Set("Authorization", "Bearer "+token)
-	tokenRetrieved.Unlock()
 
 	client := &http.Client{}
 	resp, respErr := client.Do(req)
@@ -185,10 +183,15 @@ func search(song string) {
 	if resp.StatusCode == 401 {
 		file, _ := os.Open(".spotifyThingSecret.txt")
 		defer file.Close()
+
 		scanner := bufio.NewScanner(file)
 		scanner.Scan()
+
 		refreshToken := scanner.Text()
+
+		fmt.Println("REQUESTING REFRESH TOKEN...")
 		accessToken(refreshToken, "refresh")
+		fmt.Println("AFTER REFRESH TOKEN REQUEST")
 	}
 
 	defer resp.Body.Close()
@@ -199,28 +202,41 @@ func search(song string) {
 	tracks, _ := data["tracks"].(map[string]interface{})
 	items, _ := tracks["items"].([]interface{})
 	if len(items) > 0 {
-		first, _ := items[0].(map[string]interface{})
-		uri, _ := first["uri"].(string)
-		changeSong(uri)
+		song, _ := items[0].(map[string]interface{})
+		album, _ := song["album"].(map[string]interface{})
+		albumUri, _ := album["uri"].(string)
+		trackNumber := song["track_number"].(float64)
+
+		changeSong(albumUri, int(trackNumber)-1)
 	}
 }
 
-func changeSong(song string) {
+func changeSong(albumUri string, songIndex int) {
 	apiUrl := "https://api.spotify.com/v1/me/player/play"
-	data := map[string]interface{}{
-		"uris": []string{song},
+
+	type Offset struct {
+		Position int `json:"position"`
 	}
-	jsonData, _ := json.Marshal(data)
+
+	type Context struct {
+		ContextUri string `json:"context_uri"`
+		Offset     Offset `json:"offset"`
+	}
+
+	data := Context{
+		ContextUri: albumUri,
+		Offset: Offset{
+			Position: songIndex,
+		},
+	}
+	jsonData, _ := json.MarshalIndent(data, "", " ")
 
 	req, repErr := http.NewRequest("PUT", apiUrl, bytes.NewBuffer(jsonData))
 	if repErr != nil {
 		log.Fatalf("Error creating request: %v", repErr)
 	}
 
-	tokenRetrieved.Lock()
 	req.Header.Set("Authorization", "Bearer "+token)
-	tokenRetrieved.Unlock()
-
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
