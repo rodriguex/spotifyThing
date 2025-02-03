@@ -112,6 +112,11 @@ func accessToken(value string, action string) {
 	}
 	defer resp.Body.Close()
 
+	if action != "auth" {
+		fmt.Println("REFRESH TOKEN REQUEST:")
+		fmt.Println(resp)
+	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Fatalf("Error reading response body: %v", err)
@@ -120,6 +125,11 @@ func accessToken(value string, action string) {
 	var responseMap map[string]interface{}
 	if err := json.Unmarshal(body, &responseMap); err != nil {
 		log.Fatalf("Error parsing JSON response: %v", err)
+	}
+
+	if action != "auth" {
+		fmt.Println("REFRESH TOKEN BODY:")
+		fmt.Println(string(body))
 	}
 
 	token, _ = responseMap["access_token"].(string)
@@ -207,12 +217,19 @@ func search(song string) {
 		albumUri, _ := album["uri"].(string)
 		trackNumber := song["track_number"].(float64)
 
-		changeSong(albumUri, int(trackNumber)-1)
+		changeSong(albumUri, int(trackNumber)-1, "")
 	}
 }
 
-func changeSong(albumUri string, songIndex int) {
+func changeSong(albumUri string, songIndex int, deviceId string) {
 	apiUrl := "https://api.spotify.com/v1/me/player/play"
+	var params = url.Values{}
+
+	if deviceId != "" {
+		params.Add("device_id", deviceId)
+	}
+
+	fullUrl := fmt.Sprintf("%s?%s", apiUrl, params.Encode())
 
 	type Offset struct {
 		Position int `json:"position"`
@@ -231,7 +248,7 @@ func changeSong(albumUri string, songIndex int) {
 	}
 	jsonData, _ := json.MarshalIndent(data, "", " ")
 
-	req, repErr := http.NewRequest("PUT", apiUrl, bytes.NewBuffer(jsonData))
+	req, repErr := http.NewRequest("PUT", fullUrl, bytes.NewBuffer(jsonData))
 	if repErr != nil {
 		log.Fatalf("Error creating request: %v", repErr)
 	}
@@ -244,6 +261,45 @@ func changeSong(albumUri string, songIndex int) {
 	if respErr != nil {
 		log.Fatalf("Error sending request: %v", respErr)
 	}
+	defer resp.Body.Close()
+
+	fmt.Println(resp)
+
+	if resp.StatusCode == 404 {
+		devicedId := getDeviceId()
+		changeSong(albumUri, songIndex, devicedId)
+	}
+}
+
+func getDeviceId() string {
+	apiUrl := "https://api.spotify.com/v1/me/player/devices"
+
+	req, repErr := http.NewRequest("GET", apiUrl, nil)
+	if repErr != nil {
+		log.Fatalf("Error creating request: %v", repErr)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	client := &http.Client{}
+	resp, respErr := client.Do(req)
+	if respErr != nil {
+		log.Fatalf("Error sending request: %v", respErr)
+	}
 
 	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	var data map[string]interface{}
+	json.Unmarshal(body, &data)
+
+	devices, _ := data["devices"].([]interface{})
+	for i := range devices {
+		device, _ := devices[i].(map[string]interface{})
+		deviceType, _ := device["type"].(string)
+		if deviceType == "Computer" {
+			return device["id"].(string)
+		}
+	}
+
+	return ""
 }
