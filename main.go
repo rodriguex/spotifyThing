@@ -133,25 +133,17 @@ func accessToken(value string, action string) {
 	}
 
 	token, _ = responseMap["access_token"].(string)
-	refreshToken, _ := responseMap["refresh_token"].(string)
-
 	if action != "auth" {
 		os.Remove(".spotifyThingTopSecret.txt")
-		os.Remove(".spotifyThingSecret.txt")
 	}
 
 	fileToken, _ := os.Create(".spotifyThingTopSecret.txt")
 	defer fileToken.Close()
 	fileToken.WriteString(token)
 
-	fileRefreshToken, _ := os.Create(".spotifyThingSecret.txt")
-	defer fileRefreshToken.Close()
-	fileRefreshToken.WriteString(refreshToken)
-
 	if action != "auth" {
 		fmt.Println("REFRESH TOKEN RESULTS:")
 		fmt.Println(token)
-		fmt.Println(refreshToken)
 	}
 }
 
@@ -204,6 +196,8 @@ func search(song string) {
 		fmt.Println("AFTER REFRESH TOKEN REQUEST")
 	}
 
+	fmt.Println("AFTER 401 IF")
+
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 	var data map[string]interface{}
@@ -216,6 +210,13 @@ func search(song string) {
 		album, _ := song["album"].(map[string]interface{})
 		albumUri, _ := album["uri"].(string)
 		trackNumber := song["track_number"].(float64)
+
+		cmd := exec.Command("pgrep", "-x", "spotify")
+		output, _ := cmd.Output()
+		if len(output) < 1 {
+			spotify := exec.Command("spotify")
+			spotify.Start()
+		}
 
 		changeSong(albumUri, int(trackNumber)-1, "")
 	}
