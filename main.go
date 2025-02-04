@@ -116,11 +116,6 @@ func accessToken(value string, action string) string {
 		log.Fatalf("Error reading response body: %v", err)
 	}
 
-	if action == "refresh" {
-		fmt.Println("REFRESH TOKEN BODY RESPONSE:")
-		fmt.Println(string(body))
-	}
-
 	var responseMap map[string]interface{}
 	if err := json.Unmarshal(body, &responseMap); err != nil {
 		log.Fatalf("Error parsing JSON response: %v", err)
@@ -200,8 +195,6 @@ func search(songInput string) {
 	}
 
 	if resp.StatusCode == 401 {
-		fmt.Println("401. GETTING REFRESH TOKEN FROM FILE")
-
 		file, _ := os.Open(".spotifyThingSecret.txt")
 		defer file.Close()
 
@@ -209,14 +202,11 @@ func search(songInput string) {
 		scanner.Scan()
 
 		refreshToken := scanner.Text()
-
-		fmt.Println("REFRESH TOKEN:")
-		fmt.Println(refreshToken)
-
 		accessToken(refreshToken, "refresh")
-	}
 
-	fmt.Println("AFTER REFRESH TOKEN BLOCK")
+		search(songInput)
+		return
+	}
 
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
@@ -287,6 +277,7 @@ func changeSong(token string, albumUri string, songIndex int, deviceId string, r
 	if resp.StatusCode == 404 {
 		devicedId := getDeviceId(token)
 		changeSong(token, albumUri, songIndex, devicedId, repeatMode)
+		return
 	}
 
 	if repeatMode != "" {
