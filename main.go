@@ -116,6 +116,11 @@ func accessToken(value string, action string) string {
 		log.Fatalf("Error reading response body: %v", err)
 	}
 
+	if action == "refresh" {
+		fmt.Println("REFRESH TOKEN BODY RESPONSE:")
+		fmt.Println(string(body))
+	}
+
 	var responseMap map[string]interface{}
 	if err := json.Unmarshal(body, &responseMap); err != nil {
 		log.Fatalf("Error parsing JSON response: %v", err)
@@ -140,7 +145,7 @@ func accessToken(value string, action string) string {
 	return token
 }
 
-func search(song string) {
+func search(songInput string) {
 	var token string
 
 	file, err := os.Open(".spotifyThingTopSecret.txt")
@@ -155,8 +160,27 @@ func search(song string) {
 
 	apiUrl := "https://api.spotify.com/v1/search"
 
+	var mode string = ""
+	var aux string
+
+	words := strings.Split(songInput, " ")
+	for _, word := range words {
+		if word == "only" {
+			mode = "track"
+			aux = "only"
+		} else if word == "free" {
+			mode = "off"
+			aux = "free"
+		}
+	}
+
+	if mode != "" {
+		result := strings.Replace(songInput, aux, "", -1)
+		songInput = strings.Join(strings.Fields(result), " ")
+	}
+
 	params := url.Values{}
-	params.Add("q", "track:"+song)
+	params.Add("q", "track:"+songInput)
 	params.Add("type", "track")
 	params.Add("limit", "1")
 
@@ -176,6 +200,8 @@ func search(song string) {
 	}
 
 	if resp.StatusCode == 401 {
+		fmt.Println("401. GETTING REFRESH TOKEN FROM FILE")
+
 		file, _ := os.Open(".spotifyThingSecret.txt")
 		defer file.Close()
 
@@ -183,8 +209,14 @@ func search(song string) {
 		scanner.Scan()
 
 		refreshToken := scanner.Text()
+
+		fmt.Println("REFRESH TOKEN:")
+		fmt.Println(refreshToken)
+
 		accessToken(refreshToken, "refresh")
 	}
+
+	fmt.Println("AFTER REFRESH TOKEN BLOCK")
 
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
@@ -206,11 +238,11 @@ func search(song string) {
 			spotify := exec.Command("spotify")
 			spotify.Start()
 		}
-		changeSong(token, albumUri, int(trackNumber)-1, "")
+		changeSong(token, albumUri, int(trackNumber)-1, "", mode)
 	}
 }
 
-func changeSong(token string, albumUri string, songIndex int, deviceId string) {
+func changeSong(token string, albumUri string, songIndex int, deviceId string, repeatMode string) {
 	apiUrl := "https://api.spotify.com/v1/me/player/play"
 	var params = url.Values{}
 
@@ -254,7 +286,11 @@ func changeSong(token string, albumUri string, songIndex int, deviceId string) {
 
 	if resp.StatusCode == 404 {
 		devicedId := getDeviceId(token)
-		changeSong(token, albumUri, songIndex, devicedId)
+		changeSong(token, albumUri, songIndex, devicedId, repeatMode)
+	}
+
+	if repeatMode != "" {
+		setRepeatMode(token, repeatMode)
 	}
 }
 
@@ -290,4 +326,28 @@ func getDeviceId(token string) string {
 	}
 
 	return ""
+}
+
+func setRepeatMode(token string, mode string) {
+	apiUrl := "https://api.spotify.com/v1/me/player/repeat"
+
+	params := url.Values{}
+	params.Add("state", mode)
+
+	fullUrl := fmt.Sprintf("%s?%s", apiUrl, params.Encode())
+
+	req, repErr := http.NewRequest("PUT", fullUrl, nil)
+	if repErr != nil {
+		log.Fatalf("Error creating request: %v", repErr)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	client := &http.Client{}
+	resp, respErr := client.Do(req)
+	if respErr != nil {
+		log.Fatalf("Error sending request: %v", respErr)
+	}
+
+	defer resp.Body.Close()
 }
