@@ -22,8 +22,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var token string
-
 func main() {
 	myApp := app.New()
 	myWindow := myApp.NewWindow("SpotifyThing")
@@ -41,15 +39,13 @@ func main() {
 		execute,
 	))
 
-	go func() {
-		myWindow.Canvas().Focus(input)
-	}()
-
+	myWindow.Canvas().Focus(input)
 	myWindow.Resize(fyne.NewSize(300, 80))
+
 	myWindow.ShowAndRun()
 }
 
-func authorize() {
+func authorize() string {
 	apiUrl := "https://accounts.spotify.com/authorize"
 
 	params := url.Values{}
@@ -64,6 +60,8 @@ func authorize() {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
+	var token string
+
 	go func() {
 		gin.SetMode(gin.ReleaseMode)
 		router := gin.New()
@@ -71,16 +69,17 @@ func authorize() {
 
 		router.GET("/authorize", func(c *gin.Context) {
 			code := c.Query("code")
-			accessToken(code, "auth")
+			token = accessToken(code, "auth")
 			wg.Done()
 		})
 		router.Run("localhost:8080")
 	}()
 
 	wg.Wait()
+	return token
 }
 
-func accessToken(value string, action string) {
+func accessToken(value string, action string) string {
 	apiUrl := "https://accounts.spotify.com/api/token"
 
 	formData := url.Values{}
@@ -98,12 +97,12 @@ func accessToken(value string, action string) {
 		log.Fatalf("Error creating request: %v", repErr)
 	}
 
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	clientID := "3b352d644e58404e80544474ff992166"
 	clientSecret := "fda4e2cdca1244b2819ca6bd805542f0"
 	authHeader := base64.StdEncoding.EncodeToString([]byte(clientID + ":" + clientSecret))
 
 	req.Header.Set("Authorization", "Basic "+authHeader)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	client := &http.Client{}
 	resp, respErr := client.Do(req)
@@ -111,11 +110,6 @@ func accessToken(value string, action string) {
 		log.Fatalf("Error sending request: %v", respErr)
 	}
 	defer resp.Body.Close()
-
-	if action != "auth" {
-		fmt.Println("REFRESH TOKEN REQUEST:")
-		fmt.Println(resp)
-	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -127,13 +121,8 @@ func accessToken(value string, action string) {
 		log.Fatalf("Error parsing JSON response: %v", err)
 	}
 
-	if action != "auth" {
-		fmt.Println("REFRESH TOKEN BODY:")
-		fmt.Println(string(body))
-	}
-
-	token, _ = responseMap["access_token"].(string)
-	if action != "auth" {
+	token, _ := responseMap["access_token"].(string)
+	if action == "refresh" {
 		os.Remove(".spotifyThingTopSecret.txt")
 	}
 
@@ -141,23 +130,27 @@ func accessToken(value string, action string) {
 	defer fileToken.Close()
 	fileToken.WriteString(token)
 
-	if action != "auth" {
-		fmt.Println("REFRESH TOKEN RESULTS:")
-		fmt.Println(token)
+	if action == "auth" {
+		refreshToken, _ := responseMap["refresh_token"].(string)
+		fileRefreshToken, _ := os.Create(".spotifyThingSecret.txt")
+		defer fileRefreshToken.Close()
+		fileRefreshToken.WriteString(refreshToken)
 	}
+
+	return token
 }
 
 func search(song string) {
-	if token == "" {
-		file, err := os.Open(".spotifyThingTopSecret.txt")
-		if err != nil {
-			authorize()
-		} else {
-			defer file.Close()
-			scanner := bufio.NewScanner(file)
-			scanner.Scan()
-			token = scanner.Text()
-		}
+	var token string
+
+	file, err := os.Open(".spotifyThingTopSecret.txt")
+	if err != nil {
+		token = authorize()
+	} else {
+		defer file.Close()
+		scanner := bufio.NewScanner(file)
+		scanner.Scan()
+		token = scanner.Text()
 	}
 
 	apiUrl := "https://api.spotify.com/v1/search"
@@ -190,16 +183,12 @@ func search(song string) {
 		scanner.Scan()
 
 		refreshToken := scanner.Text()
-
-		fmt.Println("REQUESTING REFRESH TOKEN...")
 		accessToken(refreshToken, "refresh")
-		fmt.Println("AFTER REFRESH TOKEN REQUEST")
 	}
-
-	fmt.Println("AFTER 401 IF")
 
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
+
 	var data map[string]interface{}
 	json.Unmarshal(body, &data)
 
@@ -217,12 +206,11 @@ func search(song string) {
 			spotify := exec.Command("spotify")
 			spotify.Start()
 		}
-
-		changeSong(albumUri, int(trackNumber)-1, "")
+		changeSong(token, albumUri, int(trackNumber)-1, "")
 	}
 }
 
-func changeSong(albumUri string, songIndex int, deviceId string) {
+func changeSong(token string, albumUri string, songIndex int, deviceId string) {
 	apiUrl := "https://api.spotify.com/v1/me/player/play"
 	var params = url.Values{}
 
@@ -264,15 +252,13 @@ func changeSong(albumUri string, songIndex int, deviceId string) {
 	}
 	defer resp.Body.Close()
 
-	fmt.Println(resp)
-
 	if resp.StatusCode == 404 {
-		devicedId := getDeviceId()
-		changeSong(albumUri, songIndex, devicedId)
+		devicedId := getDeviceId(token)
+		changeSong(token, albumUri, songIndex, devicedId)
 	}
 }
 
-func getDeviceId() string {
+func getDeviceId(token string) string {
 	apiUrl := "https://api.spotify.com/v1/me/player/devices"
 
 	req, repErr := http.NewRequest("GET", apiUrl, nil)
@@ -290,6 +276,7 @@ func getDeviceId() string {
 
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
+
 	var data map[string]interface{}
 	json.Unmarshal(body, &data)
 
