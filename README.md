@@ -1,1 +1,3 @@
-# Gonna do the whole thing using GO. It's basically an API.
+# SpotifyThing
+
+Still thinking about a nice README file...
