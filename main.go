@@ -20,9 +20,12 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	godotenv.Load()
+
 	myApp := app.New()
 	myWindow := myApp.NewWindow("SpotifyThing")
 
@@ -50,8 +53,8 @@ func authorize() string {
 
 	params := url.Values{}
 	params.Add("response_type", "code")
-	params.Add("redirect_uri", "http://localhost:8080/authorize")
-	params.Add("client_id", "3b352d644e58404e80544474ff992166")
+	params.Add("redirect_uri", os.Getenv("redirect_uri"))
+	params.Add("client_id", os.Getenv("client_id"))
 	params.Add("scope", "user-read-playback-state,user-modify-playback-state")
 
 	fullUrl := fmt.Sprintf("%s?%s", apiUrl, params.Encode())
@@ -72,7 +75,7 @@ func authorize() string {
 			token = accessToken(code, "auth")
 			wg.Done()
 		})
-		router.Run("localhost:8080")
+		router.Run(os.Getenv("base_url"))
 	}()
 
 	wg.Wait()
@@ -86,7 +89,7 @@ func accessToken(value string, action string) string {
 	if action == "auth" {
 		formData.Set("code", value)
 		formData.Set("grant_type", "authorization_code")
-		formData.Set("redirect_uri", "http://localhost:8080/authorize")
+		formData.Set("redirect_uri", os.Getenv("redirect_uri"))
 	} else {
 		formData.Set("grant_type", "refresh_token")
 		formData.Set("refresh_token", value)
@@ -97,9 +100,7 @@ func accessToken(value string, action string) string {
 		log.Fatalf("Error creating request: %v", repErr)
 	}
 
-	clientID := "3b352d644e58404e80544474ff992166"
-	clientSecret := "fda4e2cdca1244b2819ca6bd805542f0"
-	authHeader := base64.StdEncoding.EncodeToString([]byte(clientID + ":" + clientSecret))
+	authHeader := base64.StdEncoding.EncodeToString([]byte(os.Getenv("client_id") + ":" + os.Getenv("client_secret")))
 
 	req.Header.Set("Authorization", "Basic "+authHeader)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
