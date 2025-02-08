@@ -15,3 +15,9 @@ Install these packages for Ubuntu/Debian like systems:
 If you're running other kind of Linuxes, go to these page and download the necessary packages for your system: 
 
 https://docs.fyne.io/started/
+
+After this, you'll need to create a new application in Spotify's Developers Portal. Sign in and go to your Dashboard:
+
+https://developer.spotify.com/dashboard
+
+Go to 'Create App'. You can name it how you want, what really matters in this part is that the REDIRECT_URI you put matches with the one in the code. By default, I set it for localhost:8080/authorize. If you want to change this, don't forget to change also in the code. `main.go`, line 28 in REDIRECT_URI global variable.
