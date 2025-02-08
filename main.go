@@ -24,7 +24,7 @@ import (
 )
 
 func main() {
-	godotenv.Load()
+	godotenv.Load("/opt/spotifyThing/.env")
 
 	myApp := app.New()
 	myWindow := myApp.NewWindow("SpotifyThing")
@@ -53,8 +53,8 @@ func authorize() string {
 
 	params := url.Values{}
 	params.Add("response_type", "code")
-	params.Add("redirect_uri", os.Getenv("redirect_uri"))
-	params.Add("client_id", os.Getenv("client_id"))
+	params.Add("redirect_uri", os.Getenv("REDIRECT_URI"))
+	params.Add("client_id", os.Getenv("CLIENT_ID"))
 	params.Add("scope", "user-read-playback-state,user-modify-playback-state")
 
 	fullUrl := fmt.Sprintf("%s?%s", apiUrl, params.Encode())
@@ -75,7 +75,7 @@ func authorize() string {
 			token = accessToken(code, "auth")
 			wg.Done()
 		})
-		router.Run(os.Getenv("base_url"))
+		router.Run(os.Getenv("SERVER_URL"))
 	}()
 
 	wg.Wait()
@@ -89,7 +89,7 @@ func accessToken(value string, action string) string {
 	if action == "auth" {
 		formData.Set("code", value)
 		formData.Set("grant_type", "authorization_code")
-		formData.Set("redirect_uri", os.Getenv("redirect_uri"))
+		formData.Set("redirect_uri", os.Getenv("REDIRECT_URI"))
 	} else {
 		formData.Set("grant_type", "refresh_token")
 		formData.Set("refresh_token", value)
@@ -100,7 +100,7 @@ func accessToken(value string, action string) string {
 		log.Fatalf("Error creating request: %v", repErr)
 	}
 
-	authHeader := base64.StdEncoding.EncodeToString([]byte(os.Getenv("client_id") + ":" + os.Getenv("client_secret")))
+	authHeader := base64.StdEncoding.EncodeToString([]byte(os.Getenv("CLIENT_ID") + ":" + os.Getenv("CLIENT_SECRET")))
 
 	req.Header.Set("Authorization", "Basic "+authHeader)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -124,16 +124,16 @@ func accessToken(value string, action string) string {
 
 	token, _ := responseMap["access_token"].(string)
 	if action == "refresh" {
-		os.Remove(".spotifyThingTopSecret.txt")
+		os.Remove("/opt/spotifyThing/.spotifyThingTopSecret.txt")
 	}
 
-	fileToken, _ := os.Create(".spotifyThingTopSecret.txt")
+	fileToken, _ := os.Create("/opt/spotifyThing/.spotifyThingTopSecret.txt")
 	defer fileToken.Close()
 	fileToken.WriteString(token)
 
 	if action == "auth" {
 		refreshToken, _ := responseMap["refresh_token"].(string)
-		fileRefreshToken, _ := os.Create(".spotifyThingSecret.txt")
+		fileRefreshToken, _ := os.Create("/opt/spotifyThing/.spotifyThingSecret.txt")
 		defer fileRefreshToken.Close()
 		fileRefreshToken.WriteString(refreshToken)
 	}
@@ -144,7 +144,7 @@ func accessToken(value string, action string) string {
 func search(songInput string) {
 	var token string
 
-	file, err := os.Open(".spotifyThingTopSecret.txt")
+	file, err := os.Open("/opt/spotifyThing/.spotifyThingTopSecret.txt")
 	if err != nil {
 		token = authorize()
 	} else {
@@ -196,7 +196,7 @@ func search(songInput string) {
 	}
 
 	if resp.StatusCode == 401 {
-		file, _ := os.Open(".spotifyThingSecret.txt")
+		file, _ := os.Open("/opt/spotifyThing/.spotifyThingSecret.txt")
 		defer file.Close()
 
 		scanner := bufio.NewScanner(file)
