@@ -24,7 +24,7 @@ import (
 )
 
 func main() {
-	godotenv.Load("/opt/spotifyThing/.env")
+	godotenv.Load()
 
 	myApp := app.New()
 	myWindow := myApp.NewWindow("SpotifyThing")
@@ -124,16 +124,16 @@ func accessToken(value string, action string) string {
 
 	token, _ := responseMap["access_token"].(string)
 	if action == "refresh" {
-		os.Remove("/opt/spotifyThing/.spotifyThingTopSecret.txt")
+		os.Remove(".spotifyThingTopSecret.txt")
 	}
 
-	fileToken, _ := os.Create("/opt/spotifyThing/.spotifyThingTopSecret.txt")
+	fileToken, _ := os.Create(".spotifyThingTopSecret.txt")
 	defer fileToken.Close()
 	fileToken.WriteString(token)
 
 	if action == "auth" {
 		refreshToken, _ := responseMap["refresh_token"].(string)
-		fileRefreshToken, _ := os.Create("/opt/spotifyThing/.spotifyThingSecret.txt")
+		fileRefreshToken, _ := os.Create(".spotifyThingSecret.txt")
 		defer fileRefreshToken.Close()
 		fileRefreshToken.WriteString(refreshToken)
 	}
@@ -144,7 +144,7 @@ func accessToken(value string, action string) string {
 func search(songInput string) {
 	var token string
 
-	file, err := os.Open("/opt/spotifyThing/.spotifyThingTopSecret.txt")
+	file, err := os.Open(".spotifyThingTopSecret.txt")
 	if err != nil {
 		token = authorize()
 	} else {
@@ -196,7 +196,7 @@ func search(songInput string) {
 	}
 
 	if resp.StatusCode == 401 {
-		file, _ := os.Open("/opt/spotifyThing/.spotifyThingSecret.txt")
+		file, _ := os.Open(".spotifyThingSecret.txt")
 		defer file.Close()
 
 		scanner := bufio.NewScanner(file)
