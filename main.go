@@ -167,6 +167,9 @@ func search(songInput string) {
 		} else if word == "free" {
 			mode = "off"
 			aux = "free"
+		} else if word == "artist" {
+			mode = "artist"
+			aux = "artist"
 		}
 	}
 
@@ -176,8 +179,15 @@ func search(songInput string) {
 	}
 
 	params := url.Values{}
-	params.Add("q", "track:"+songInput)
-	params.Add("type", "track")
+
+	if mode == "artist" {
+		params.Add("q", "artist:"+songInput)
+		params.Add("type", "artist")
+	} else {
+		params.Add("q", "track:"+songInput)
+		params.Add("type", "track")
+	}
+
 	params.Add("limit", "1")
 
 	fullUrl := fmt.Sprintf("%s?%s", apiUrl, params.Encode())
@@ -214,6 +224,9 @@ func search(songInput string) {
 
 	var data map[string]interface{}
 	json.Unmarshal(body, &data)
+
+	fmt.Println(string(body))
+	return
 
 	tracks, _ := data["tracks"].(map[string]interface{})
 	items, _ := tracks["items"].([]interface{})
