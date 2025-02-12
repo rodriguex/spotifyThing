@@ -231,7 +231,8 @@ func search(songInput string) {
 		if len(items) > 0 {
 			actualArtist, _ := items[0].(map[string]interface{})
 			id, _ := actualArtist["id"].(string)
-			fmt.Println(id)
+			songs := artistTopTracks(token, id)
+			changeSong(token, songs[0], 0, "", "free", true)
 		}
 	} else {
 		tracks, _ := data["tracks"].(map[string]interface{})
@@ -248,14 +249,12 @@ func search(songInput string) {
 				spotify := exec.Command("spotify")
 				spotify.Start()
 			}
-			changeSong(token, albumUri, int(trackNumber)-1, "", mode)
+			changeSong(token, albumUri, int(trackNumber)-1, "", mode, false)
 		}
-
 	}
-
 }
 
-func changeSong(token string, albumUri string, songIndex int, deviceId string, repeatMode string) {
+func changeSong(token string, albumUri string, songIndex int, deviceId string, repeatMode string, panas bool) {
 	apiUrl := "https://api.spotify.com/v1/me/player/play"
 	var params = url.Values{}
 
@@ -274,11 +273,21 @@ func changeSong(token string, albumUri string, songIndex int, deviceId string, r
 		Offset     Offset `json:"offset"`
 	}
 
-	data := Context{
-		ContextUri: albumUri,
-		Offset: Offset{
-			Position: songIndex,
-		},
+	type Uris struct {
+		Uris []string `json:"uris"`
+	}
+
+	if !panas {
+		data := Context{
+			ContextUri: albumUri,
+			Offset: Offset{
+				Position: songIndex,
+			},
+		}
+	} else {
+		data := Uris{
+			Uris: albumUri,
+		}
 	}
 	jsonData, _ := json.MarshalIndent(data, "", " ")
 
@@ -364,4 +373,39 @@ func setRepeatMode(token string, mode string) {
 	}
 
 	defer resp.Body.Close()
+}
+
+func artistTopTracks(token string, artistId string) []string {
+	apiUrl := "https://api.spotify.com/v1/artists/" + artistId + "/top-tracks"
+
+	req, repErr := http.NewRequest("GET", apiUrl, nil)
+	if repErr != nil {
+		log.Fatalf("Error creating request: %v", repErr)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	client := &http.Client{}
+	resp, respErr := client.Do(req)
+	if respErr != nil {
+		log.Fatalf("Error sending request: %v", respErr)
+	}
+
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+
+	var data map[string]interface{}
+	json.Unmarshal(body, &data)
+
+	songs, _ := data["tracks"].([]interface{})
+	var songsUris []string
+
+	if len(songs) > 0 {
+		for _, song := range songs {
+			actualSong := song.(map[string]interface{})
+			id := actualSong["uri"].(string)
+			songsUris = append(songsUris, id)
+		}
+	}
+	return songsUris
 }
