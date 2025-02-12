@@ -167,9 +167,9 @@ func search(songInput string) {
 		} else if word == "free" {
 			mode = "off"
 			aux = "free"
-		} else if word == "artist" {
-			mode = "artist"
-			aux = "artist"
+		} else if word == "panas" {
+			mode = "panas"
+			aux = "panas"
 		}
 	}
 
@@ -180,15 +180,15 @@ func search(songInput string) {
 
 	params := url.Values{}
 
-	if mode == "artist" {
+	if mode == "panas" {
 		params.Add("q", "artist:"+songInput)
 		params.Add("type", "artist")
+		params.Add("limit", "3")
 	} else {
 		params.Add("q", "track:"+songInput)
 		params.Add("type", "track")
+		params.Add("limit", "1")
 	}
-
-	params.Add("limit", "1")
 
 	fullUrl := fmt.Sprintf("%s?%s", apiUrl, params.Encode())
 
@@ -225,25 +225,34 @@ func search(songInput string) {
 	var data map[string]interface{}
 	json.Unmarshal(body, &data)
 
-	fmt.Println(string(body))
-	return
-
-	tracks, _ := data["tracks"].(map[string]interface{})
-	items, _ := tracks["items"].([]interface{})
-	if len(items) > 0 {
-		song, _ := items[0].(map[string]interface{})
-		album, _ := song["album"].(map[string]interface{})
-		albumUri, _ := album["uri"].(string)
-		trackNumber := song["track_number"].(float64)
-
-		cmd := exec.Command("pgrep", "-x", "spotify")
-		output, _ := cmd.Output()
-		if len(output) < 1 {
-			spotify := exec.Command("spotify")
-			spotify.Start()
+	if mode == "panas" {
+		artists, _ := data["artists"].(map[string]interface{})
+		items, _ := artists["items"].([]interface{})
+		if len(items) > 0 {
+			actualArtist, _ := items[0].(map[string]interface{})
+			id, _ := actualArtist["id"].(string)
+			fmt.Println(id)
 		}
-		changeSong(token, albumUri, int(trackNumber)-1, "", mode)
+	} else {
+		tracks, _ := data["tracks"].(map[string]interface{})
+		items, _ := tracks["items"].([]interface{})
+		if len(items) > 0 {
+			song, _ := items[0].(map[string]interface{})
+			album, _ := song["album"].(map[string]interface{})
+			albumUri, _ := album["uri"].(string)
+			trackNumber := song["track_number"].(float64)
+
+			cmd := exec.Command("pgrep", "-x", "spotify")
+			output, _ := cmd.Output()
+			if len(output) < 1 {
+				spotify := exec.Command("spotify")
+				spotify.Start()
+			}
+			changeSong(token, albumUri, int(trackNumber)-1, "", mode)
+		}
+
 	}
+
 }
 
 func changeSong(token string, albumUri string, songIndex int, deviceId string, repeatMode string) {
