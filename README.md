@@ -20,4 +20,9 @@ After this, you'll need to create a new application in Spotify's Developers Port
 
 https://developer.spotify.com/dashboard
 
-Go to 'Create App'. You can name it how you want, what really matters in this part is that the REDIRECT_URI you put matches with the one in the code. By default, I set it for localhost:8080/authorize. If you want to change this, don't forget to change also in the code. `main.go`, line 28 in REDIRECT_URI global variable.
+Make a new app with the name and description you want, set the redirect_uri for http://localhost:8080/authorize and check the 'Web Api'. After created, go to settings and copy the following data into an .env file you need to create in the project:
+
+CLIENT_ID=YOUR_CLIENT_ID
+CLIENT_SECRET=YOUR_CLIENT_SECRET
+REDIRECT_URI=YOUR_REDIRECT_URI
+SERVER_URL=YOUR_SERVER_DOMAIN // if your redirect_uri is: http://localhost:8080/authorize, server url needs to be localhost:8080
