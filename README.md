@@ -22,7 +22,9 @@ https://developer.spotify.com/dashboard
 
 Make a new app with the name and description you want, set the redirect_uri for http://localhost:8080/authorize and check the 'Web Api'. After created, go to settings and copy the following data into an .env file you need to create in the project:
 
-CLIENT_ID=YOUR_CLIENT_ID
-CLIENT_SECRET=YOUR_CLIENT_SECRET
-REDIRECT_URI=YOUR_REDIRECT_URI
-SERVER_URL=YOUR_SERVER_DOMAIN // if your redirect_uri is: http://localhost:8080/authorize, server url needs to be localhost:8080
+CLIENT_ID=YOUR_CLIENT_ID  
+CLIENT_SECRET=YOUR_CLIENT_SECRET  
+REDIRECT_URL=YOUR_REDIRECT_URL   
+SERVER_URL=YOUR_SERVER_URL   
+
+If your redirect_url is: http://localhost:8080/authorize, server url needs to be localhost:8080.
