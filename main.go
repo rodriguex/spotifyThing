@@ -232,7 +232,7 @@ func search(songInput string) {
 			actualArtist, _ := items[0].(map[string]interface{})
 			id, _ := actualArtist["id"].(string)
 			songs := artistTopTracks(token, id)
-			changeSong(token, songs[0], 0, "", "free", true)
+			changeSong(token, "", -1, songs, "", "free", true)
 		}
 	} else {
 		tracks, _ := data["tracks"].(map[string]interface{})
@@ -249,12 +249,12 @@ func search(songInput string) {
 				spotify := exec.Command("spotify")
 				spotify.Start()
 			}
-			changeSong(token, albumUri, int(trackNumber)-1, "", mode, false)
+			changeSong(token, albumUri, int(trackNumber)-1, nil, "", mode, false)
 		}
 	}
 }
 
-func changeSong(token string, albumUri string, songIndex int, deviceId string, repeatMode string, panas bool) {
+func changeSong(token string, albumUri string, songIndex int, songs []string, deviceId string, repeatMode string, panas bool) {
 	apiUrl := "https://api.spotify.com/v1/me/player/play"
 	var params = url.Values{}
 
@@ -277,16 +277,18 @@ func changeSong(token string, albumUri string, songIndex int, deviceId string, r
 		Uris []string `json:"uris"`
 	}
 
+	var data interface{}
+
 	if !panas {
-		data := Context{
+		data = Context{
 			ContextUri: albumUri,
 			Offset: Offset{
 				Position: songIndex,
 			},
 		}
 	} else {
-		data := Uris{
-			Uris: albumUri,
+		data = Uris{
+			Uris: songs,
 		}
 	}
 	jsonData, _ := json.MarshalIndent(data, "", " ")
@@ -308,7 +310,7 @@ func changeSong(token string, albumUri string, songIndex int, deviceId string, r
 
 	if resp.StatusCode == 404 {
 		devicedId := getDeviceId(token)
-		changeSong(token, albumUri, songIndex, devicedId, repeatMode)
+		changeSong(token, albumUri, songIndex, songs, devicedId, repeatMode, panas)
 		return
 	}
 
