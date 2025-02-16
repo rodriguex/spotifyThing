@@ -179,15 +179,13 @@ func search(songInput string) {
 	}
 
 	params := url.Values{}
+	params.Add("q", songInput)
+	params.Add("limit", "1")
 
 	if mode == "panas" {
-		params.Add("q", "artist:"+songInput)
 		params.Add("type", "artist")
-		params.Add("limit", "3")
 	} else {
-		params.Add("q", "track:"+songInput)
 		params.Add("type", "track")
-		params.Add("limit", "1")
 	}
 
 	fullUrl := fmt.Sprintf("%s?%s", apiUrl, params.Encode())
