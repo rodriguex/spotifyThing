@@ -28,3 +28,6 @@ REDIRECT_URL=YOUR_REDIRECT_URL
 SERVER_URL=YOUR_SERVER_URL   
 
 If your redirect_url is: http://localhost:8080/authorize, server url needs to be localhost:8080.
+
+After that, run `go build -x` (-x) to see the logs so it doenst seem that slow the process. When it's done, ./spotifyThing and search a song to see
+the shit working.
