@@ -46,6 +46,18 @@ func main() {
 	myWindow.Resize(fyne.NewSize(300, 80))
 
 	myWindow.ShowAndRun()
+
+	// var token string
+	// file, err := os.Open(".spotifyThingTopSecret.txt")
+	// if err != nil {
+	// 	token = authorize()
+	// } else {
+	// 	defer file.Close()
+	// 	scanner := bufio.NewScanner(file)
+	// 	scanner.Scan()
+	// 	token = scanner.Text()
+	// }
+	// getPlaybackState(token)
 }
 
 func authorize() string {
@@ -408,4 +420,26 @@ func artistTopTracks(token string, artistId string) []string {
 		}
 	}
 	return songsUris
+}
+
+func getPlaybackState(token string) {
+	apiUrl := "https://api.spotify.com/v1/me/player"
+
+	req, repErr := http.NewRequest("GET", apiUrl, nil)
+	if repErr != nil {
+		log.Fatalf("Error creating request: %v", repErr)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	client := &http.Client{}
+	resp, respErr := client.Do(req)
+	if respErr != nil {
+		log.Fatalf("Error sending request: %v", respErr)
+	}
+
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+
+	fmt.Println(string(body))
 }
