@@ -24,7 +24,7 @@ import (
 )
 
 func main() {
-	godotenv.Load()
+	godotenv.Load("/home/gus/www/spotifyThing/.tuatia")
 
 	myApp := app.New()
 	myWindow := myApp.NewWindow("SpotifyThing")
@@ -32,32 +32,22 @@ func main() {
 	input := widget.NewEntry()
 	input.SetPlaceHolder("type a song")
 
-	execute := widget.NewButton("Search", func() {
-		search(input.Text)
+	input.OnSubmitted = func(value string) {
+		input.SetText("loading...")
+		input.FocusLost()
+		search(value)
+		input.SetText("")
 		os.Exit(0)
-	})
+	}
 
 	myWindow.SetContent(container.NewVBox(
 		input,
-		execute,
 	))
 
 	myWindow.Canvas().Focus(input)
-	myWindow.Resize(fyne.NewSize(300, 80))
+	myWindow.Resize(fyne.NewSize(300, 50))
 
 	myWindow.ShowAndRun()
-
-	// var token string
-	// file, err := os.Open(".spotifyThingTopSecret.txt")
-	// if err != nil {
-	// 	token = authorize()
-	// } else {
-	// 	defer file.Close()
-	// 	scanner := bufio.NewScanner(file)
-	// 	scanner.Scan()
-	// 	token = scanner.Text()
-	// }
-	// getPlaybackState(token)
 }
 
 func authorize() string {
@@ -117,6 +107,9 @@ func accessToken(value string, action string) string {
 	req.Header.Set("Authorization", "Basic "+authHeader)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
+	fmt.Println(authHeader)
+	return ""
+
 	client := &http.Client{}
 	resp, respErr := client.Do(req)
 	if respErr != nil {
@@ -129,6 +122,9 @@ func accessToken(value string, action string) string {
 		log.Fatalf("Error reading response body: %v", err)
 	}
 
+	fmt.Println(string(body))
+	return ""
+
 	var responseMap map[string]interface{}
 	if err := json.Unmarshal(body, &responseMap); err != nil {
 		log.Fatalf("Error parsing JSON response: %v", err)
@@ -139,7 +135,7 @@ func accessToken(value string, action string) string {
 		os.Remove(".spotifyThingTopSecret.txt")
 	}
 
-	fileToken, _ := os.Create(".spotifyThingTopSecret.txt")
+	fileToken, err := os.Create(".spotifyThingTopSecret.txt")
 	defer fileToken.Close()
 	fileToken.WriteString(token)
 
@@ -191,12 +187,13 @@ func search(songInput string) {
 	}
 
 	params := url.Values{}
-	params.Add("q", songInput)
-	params.Add("limit", "1")
+	params.Add("limit", "3")
 
 	if mode == "panas" {
+		params.Add("q", songInput)
 		params.Add("type", "artist")
 	} else {
+		params.Add("q", "track:"+songInput)
 		params.Add("type", "track")
 	}
 
